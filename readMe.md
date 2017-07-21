@@ -1,0 +1,1 @@
+Part of thesis work to estimate biomass from point clouds including techniques to upscale estimates when training data is limited.
