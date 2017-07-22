@@ -15,6 +15,7 @@
 
 import numpy
 import matplotlib.pyplot as plt
+import feather
 
 
 def main():
@@ -23,16 +24,22 @@ def main():
     """
     #MAIN FUNCTION:
 
-    #First read in data wtih structural parameter and mass
-    filePath = "/Users/seanhendryx/DATA/ecosystemAllometry/Stochastic_Mass_CA.csv"
+    # First read in data wtih structural parameter and mass
+    # feather format https://github.com/wesm/feather/blob/master/python/scripts/large_file_test.py
+    filePath = "/Users/seanhendryx/DATA/ecosystemAllometry/measuredSpeciesDistribution/Generated_Mass_and_CAs.feather"
+    data = feather.read_dataframe(filePath)
+    #convert to numpy array:
+    data = data.values
     # !! NOTE THAT DATATYPE IN genfromtxt() HAS BEEN EXPLICITLY SPECIFIED AS FLOAT THEREFORE STRINGS WILL BE NAN
-    data = read_data(filePath)
+    #data = read_data(filePath)
 
     # !! MAKE SURE x AND t ARE THE COLUMNS THEY ARE SUPPOSED TO BE !!:
     #Extract independent variable (Canopy Area)
-    x = data[1:, 1]  # extract x (slice first column)
+    x = data[0:, 0]  # extract x (slice first column)
+    x.astype('float')
     #And Extract response variable (Mass)
-    t = data[1:, 2]  # extract t (slice second column)
+    t = data[0:, 1]  # extract t (slice second column)
+    t.astype('float')
 
 
     #Run 10-fold cros-validation to determine optimal polynomial order from 0 to 8
@@ -43,10 +50,11 @@ def main():
     numTrials = 1
     cvTrials = numpy.zeros((numTrials, 3))
     for i in range(numTrials):
+        print("Running cross-validation trial: ", numTrials)
         best_poly, min_mean_log_cv_loss = run_cv(K = K, maxorder = maxOrder, x = x, t = t, cvType = "10 Fold", randomize_data=True, title='CV', plotter=False)
         cvTrials[i,:] = i, best_poly, min_mean_log_cv_loss
     print "{0}-fold CV trials (trial number, best polygon order from CV, Min mean CV loss): ".format(K), "\n",  cvTrials
-    numpy.savetxt("/Users/seanhendryx/DATA/ecosystemAllometry/CVTrials.csv", cvTrials, fmt='%.18e', delimiter=',', newline='\n', header='trial, bestPolyOrder, minMeanCVLoss', footer='', comments='# ')
+    numpy.savetxt("/Users/seanhendryx/DATA/ecosystemAllometry/measuredSpeciesDistribution/CVTrials.csv", cvTrials, fmt='%.18e', delimiter=',', newline='\n', header='trial, bestPolyOrder, minMeanCVLoss', footer='', comments='# ')
 
     """
     #LOOCV:
@@ -67,14 +75,17 @@ def main():
     modelOrder = int(round(modelOrder))
     print "Best-fit model order according to 10-folds CV:\n", modelOrder
 
-    # Report the best-fit model parameters for the best model order according to LOOCV, and plot this model with the data.
-    plot_data(x, t)
-
     #Get best-fit model parameters:
     w = fitpoly(x, t, modelOrder)
-    plot_model(x, w, color='r')
+    # Report the best-fit model parameters for the best model order according to CV
+    print("Best-fit model parameters: ", w)
 
-    plt.show()
+    plot = False
+    if(plot == True):
+        #Plot this model with the data.
+        plot_data(x, t)
+        plot_model(x, w, color='r')
+        plt.show()
 
 # -------------------------------------------------------------------------
 # Utilities
@@ -392,6 +403,8 @@ def run_cv( K, maxorder, x, t, cvType, randomize_data=False, title='CV', plotter
 
     # iterate over model polynomial orders
     for p in range(maxorder + 1):
+        print("Running polynomial order: ", p)
+        
         # Augment the input data by the polynomial model order
         # E.g., 2nd-order polynomial model takes input x to the 0th, 1st, and 2nd power
         X[:, p] = numpy.power(x, p)
@@ -401,8 +414,9 @@ def run_cv( K, maxorder, x, t, cvType, randomize_data=False, title='CV', plotter
 
         # iterate over folds
         for fold in range(K):
+            print("Training on fold: ", fold)
             # Partition the data
-            # foldX, foldt contains the data for just one fold being held out
+            # foldX, foldt contains the data for just one fold being held out (THE TEST SETS)
             # trainX, traint contains all other data
             foldX = X[fold_indices[fold]:fold_indices[fold+1], 0:p+1]
             foldt = t[fold_indices[fold]:fold_indices[fold+1]]
@@ -427,6 +441,7 @@ def run_cv( K, maxorder, x, t, cvType, randomize_data=False, title='CV', plotter
             train_pred = numpy.dot(trainX, w)  # model predictions on training data
             train_loss[fold, p] = numpy.mean(numpy.power(train_pred - traint, 2))
 
+            print("Testing on fold: ", fold)
             fold_pred = numpy.dot(foldX, w)  # model predictions on held-out fold
             cv_loss[fold, p] = numpy.mean(numpy.power(fold_pred - foldt, 2))
 

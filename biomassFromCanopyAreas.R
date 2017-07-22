@@ -2,7 +2,7 @@
 #In development of a model to estimate biomass from Structure from Motion Point Clouds
 #Specifically, I am trying to answer the question: do we need to know the species of individual plants, or can we account for diversity with species-mixture parameters?
 #Load packages:
-packages = c('ggplot2', 'data.table', 'dplyr', 'tools', 'plotly')
+packages = c('ggplot2', 'data.table', 'dplyr', 'tools', 'plotly', 'feather')
 lapply(packages, library, character.only = TRUE)
 
 #allometric models:
@@ -64,9 +64,8 @@ legend("topleft", c("Mesquite", "Hackberry", "Pricklypear"), col=c("red", "darkg
 
 
 ###############################################################################################################################################################################################################################################################################
-# SAMPLING CANOPY AREAS
-
-#  COULD BE A UNIFORM, NORMAL, ETC. DISTRIBUTION, OR WE COULD SAMPLE FROM THE CANOPY AREAS ACTUALLY SEEN IN THE POINT CLOUD?
+# SAMPLING CANOPY AREAS FOR EACH SPECIES
+# using stratified sampling/uniform distribution
 
 # To sample Canopy Areas from a Gaussian distribution (the assumption should be verified with data):
 # use a truncated Guassian, to represent that we don't find infinitely large plants or plants that have negative dimensions:
@@ -74,79 +73,87 @@ legend("topleft", c("Mesquite", "Hackberry", "Pricklypear"), col=c("red", "darkg
 # e.g.: rtnorm(n, 12.5, 3, lower = 0, upper = 25)
 
 #But for now, let's sample from a uniform distribution, by extracting a sequence:
-set.seed(1234)
-n <- 1000000
-mesqCASamp <- seq(0, 25, length = n)
-hist(mesqCASamp, main = cat('Simulated Canopy Areas of', n, 'Individuals'), xlab = "Canopy Area (sq. meters)")
+# in field sampling, such as in McClaren et al.'s 2013 paper, they sample a sequence to represent the possible growth forms, not ecosystem-state-
+# -dependent size distributions
+#Gaussian varation in mass from an idealized allometric state
+# standard deviation taken from McClaren et al. 2013, standard error or the regression of biomass over canopy area:
+se = 0.589227544
+# Mitch McClaren's number of samples
+n = 31
+#se = sd/sqrt(n)
+sd = se * sqrt(n)
 
-#Gaussian varation in mass from an idealized allometric state, for the time being
+set.seed(1234)
+numPlantsEachSpecies <- 1000000
+mesqCASamp <- seq(0, 60, length = numPlantsEachSpecies)
+hist(mesqCASamp, main = cat('Simulated Canopy Areas of', numPlantsEachSpecies, 'Individuals'), xlab = "Canopy Area (sq. meters)")
+
 #Starting with Mesquite:
-mesqMassSamp <- mesqAllom(mesqCASamp) + rnorm(n, 0, 4)
-hist(mesqMassSamp, main = cat('Allometrically Estimated Mesquite Biomass of', n, 'Individuals'), xlab = "Biomass (kg)")
+mesqMassSamp <- mesqAllom(mesqCASamp) + rnorm(numPlantsEachSpecies, 0, sd)
+hist(mesqMassSamp, main = cat('Allometrically Estimated Mesquite Biomass of', numPlantsEachSpecies, 'Individuals'), xlab = "Biomass (kg)")
 
 #And for hackberry:
-CASampHack <- seq(0, 25, length = n)
-massSampHack <- hackAllom(CASampHack) + rnorm(n, 0, 2)
-hist(massSampHack, main = cat('Allometrically Estimated Hackberry Biomass of', n, 'Individuals'), xlab = "Biomass (kg)")
+CASampHack <- seq(0, 30, length = numPlantsEachSpecies)
+massSampHack <- hackAllom(CASampHack) + rnorm(numPlantsEachSpecies, 0, sd)
+hist(massSampHack, main = cat('Allometrically Estimated Hackberry Biomass of', numPlantsEachSpecies, 'Individuals'), xlab = "Biomass (kg)")
 
 #And pricklypear:
 #Note the low upper bound of the parameter r at .6 meters
-rSampPrick <-seq(0, .6, length = n)
-massSampPrick <- prickAllom(rSampPrick) + rnorm(n, 0, 2)
-hist(massSampPrick, main = cat('Allometrically Estimated Prickly Pear Biomass of', n, 'Individuals'), xlab = "Biomass (kg)")
+rSampPrick <-seq(0, .6, length = numPlantsEachSpecies)
+massSampPrick <- prickAllom(rSampPrick) + rnorm(numPlantsEachSpecies, 0, sd)
+hist(massSampPrick, main = cat('Allometrically Estimated Prickly Pear Biomass of', numPlantsEachSpecies, 'Individuals'), xlab = "Biomass (kg)")
 
 #Visualize the relationship of Biomass to Canopy Area by Species:
-plot(mesqCASamp, mesqMassSamp, xlab = "Canopy Area (sq m)", ylab = "Biomass (kg)", main = "Biomass of individaul mesquite plants over canopy area")
-dev.new()
-plot(x,y, type = "l", col = "red", xlab = "Canopy Area (sq m)", ylab = "Biomass (kg)", main = "Biomass of individaul plant over canopy area")
-lines(x,yHack, col = "darkgreen")
-lines(xPrick,yPrick, col = "grey")
-points(mesqCASamp, mesqMassSamp, col = "red")
-points(CASampHack, massSampHack, col = "darkgreen")
-points(rSampPrick, massSampPrick, col = "grey")
-legend("topleft", c("Mesquite", "Hackberry", "Pricklypear"), col=c("red", "darkgreen", "grey"), title = NULL, lty = 1)
+#plot(mesqCASamp, mesqMassSamp, xlab = "Canopy Area (sq m)", ylab = "Biomass (kg)", main = "Biomass of individaul mesquite plants over canopy area")
+#dev.new()
+#plot(x,y, type = "l", col = "red", xlab = "Canopy Area (sq m)", ylab = "Biomass (kg)", main = "Biomass of individaul plant over canopy area")
+#lines(x,yHack, col = "darkgreen")
+#lines(xPrick,yPrick, col = "grey")
+#points(mesqCASamp, mesqMassSamp, col = "red")
+#points(CASampHack, massSampHack, col = "darkgreen")
+#points(rSampPrick, massSampPrick, col = "grey")
+#legend("topleft", c("Mesquite", "Hackberry", "Pricklypear"), col=c("red", "darkgreen", "grey"), title = NULL, lty = 1)
 
 ###############################################################################################################################################################################################################################################################################
 
-# But now to the important part
-# let's graph how much biomass DENSITY varies if we assume certain species mixtures:
-# i.e. what is the estimated biomass density of a hectare of land if assume it as all mesquite vs all hackberry vs some species mixture
-# The goal being to see IF the species classification matters when predicting biomass from a common feature such as canopy area or height)
-#First we'll assume a number of plants in a given area in hectares
-numPlants <- 1000
-area <- 1
+# Synthesize observations:
+numPlants = 10000
+area = 1
 
 #Then, we assume some species mixing parameters:
 #PROPORTIONS ARE BY NUMBERS OF SPECIES over 1 M
 #Prosopis velutina:
-pMesquite <- .6
+pMesquite <- 0.8271605
+numMesq = numPlants * pMesquite
 
 #Celtis pallida:
-pHackberry <- .3
+pHackberry <- 0.1728395
+numHack = numPlants * pHackberry
 
 #Isocoma tenuisecta: (don't know if this is present at our site)
 #pBurroweed <- .025
 
 #Opuntia engelmannii 
-pPricklypear <- .1
+pPricklypear <- 0.0
+numPrick = numPlants * pPricklypear
 
 #Cercidium microphyllum (don't know if this is present at our site nor do I have allometry-biomass relationship for it)
 #pPaloverde <- .025
 
 # Sample canopy areas from this distribution:
-mesquites <- sample(mesqCASamp, numPlants * pMesquite)
+mesquites <- sample(mesqCASamp, numMesq)
 mesquites <- as.data.table(mesquites)
 mesquites[,mass := mesqAllom(mesquites)]
 colnames(mesquites) <- c("CA", "mass")
 mesquites[,species:="mesquite"]
 
-hackberries <- sample(CASampHack, numPlants * pHackberry)
+hackberries <- sample(CASampHack, numHack)
 hackberries <- as.data.table(hackberries)
 hackberries[,mass:= hackAllom(hackberries)]
 colnames(hackberries) <- c("CA", "mass")
 hackberries[,species:="hackberry"]
 
-pricklypears <- sample(rSampPrick, numPlants * pPricklypear)
+pricklypears <- sample(rSampPrick, numPrick)
 pricklypears <- as.data.table(pricklypears)
 pricklypears[,mass:= prickAllom(pricklypears)]
 colnames(pricklypears) <- c("CA", "mass")
@@ -154,12 +161,11 @@ pricklypears[,species:="pricklypear"]
 
 DT = rbindlist(list(mesquites, hackberries, pricklypears))
 
-# Here 10/14/16
 #Print the number of each species:
 count(DT, species)
 
-plot(DT$CA, DT$mass)
-title(main = "Deterministic Mass over Canopy Area")
+#plot(DT$CA, DT$mass)
+#title(main = "Deterministic Mass over Canopy Area")
 
 # Generate different mass estimates assuming ONE allometric equation
 assumeMesq<-mesqAllom(DT[,CA])
@@ -171,40 +177,36 @@ hist(assumeHack)
 assumePrick <- prickAllom(DT[,CA]) # %>% hist() #(won't sum if piped)
 sum(assumePrick)
 
-write.csv(DT, "/Users/seanhendryx/DATA/ecosystemAllometry/1000Deterministic_Mass_CA.csv")
+#write.csv(DT, "/Users/seanhendryx/DATA/ecosystemAllometry/1000Deterministic_Mass_CA.csv")
 # Sum biomasses
 
-#Now do the same thing but add variance:
-#Set standard deviation
-sd <- 2
-
-mesquites <- sample(mesqCASamp, numPlants * pMesquite)
+#Now do the same thing, generating a large sample of CA and Mass values from the species distribution but add variance (make non-deterministic) to the mass:
+mesquites <- sample(mesqCASamp, numMesq)
 mesquites <- as.data.table(mesquites)
-mesquites[,mass := mesqAllom(mesquites) + rnorm(n, 0, sd)]
+mesquites[,mass := mesqAllom(mesquites) + rnorm(numMesq, 0, sd)]
 colnames(mesquites) <- c("CA", "mass")
 mesquites[,species:="mesquite"]
 
-hackberries <- sample(CASampHack, numPlants * pHackberry)
+hackberries <- sample(CASampHack, numHack)
 hackberries <- as.data.table(hackberries)
-hackberries[,mass:= hackAllom(hackberries) + rnorm(n, 0, sd)]
+hackberries[,mass:= hackAllom(hackberries) + rnorm(numHack, 0, sd)]
 colnames(hackberries) <- c("CA", "mass")
 hackberries[,species:="hackberry"]
 
-pricklypears <- sample(rSampPrick, numPlants * pPricklypear)
+pricklypears <- sample(rSampPrick, numPrick)
 pricklypears <- as.data.table(pricklypears)
-pricklypears[,mass:= prickAllom(pricklypears) + rnorm(n, 0, sd)]
+pricklypears[,mass:= prickAllom(pricklypears) + rnorm(numPrick, 0, sd)]
 colnames(pricklypears) <- c("CA", "mass")
 pricklypears[,species:="pricklypear"]
 
 DT = rbindlist(list(mesquites, hackberries, pricklypears))
 
-# Here 10/14/16
 #Print the number of each species:
 count(DT, species)
 
-plot(DT$CA, DT$mass)
-title(main = "Stochastic Mass over Canopy Area")
-write.csv(DT, "/Users/seanhendryx/DATA/ecosystemAllometry/1000Stochastic_Mass_CA.csv")
+#p = ggplot(data = DT, mapping = aes(x = CA, y = mass)) + geom_point(mapping = aes(color = species), alpha = 1) + labs(x = expression(paste("Canopy Area (", {m^2}, ")")), y = "AGB (kg)") + theme_bw()
+
+write_feather(DT, "/Users/seanhendryx/DATA/ecosystemAllometry/measuredSpeciesDistribution/Generated_Mass_and_CAs.feather")
 
 #HERE # Here
 #Next: run cross validation to infer the polynomial order of a least squares model: f_eco() {the function of ecosystem allometry}
